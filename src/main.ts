@@ -90,7 +90,7 @@ function renderSettingsUI() {
               <option value="ddg" ${defaultBang === "ddg" ? "selected" : ""}>DuckDuckGo (ddg)</option>
               <option value="b" ${defaultBang === "b" ? "selected" : ""}>Bing (b)</option>
               <option value="y" ${defaultBang === "y" ? "selected" : ""}>Yahoo (y)</option>
-              <option value="y" ${defaultBang === "ec" ? "selected" : ""}>Ecosia (ec)</option>
+              <option value="ec" ${defaultBang === "ec" ? "selected" : ""}>Ecosia (ec)</option>
               ${customBangs.map(bang => 
                 `<option value="${bang.t}" ${defaultBang === bang.t ? "selected" : ""}>${bang.s} (${bang.t})</option>`
               ).join("")}
