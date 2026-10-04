@@ -114,7 +114,7 @@ function renderSettingsUI() {
             </div>
             
             <div class="add-bang-form">
-              <label>Add Custom Bang</label>
+              <label>Add Custom Bang <a href="#" id="bulk-edit-link" class="bulk-edit-link">or Bulk Edit</a></label>
               <div class="form-row">
                 <input type="text" id="bang-trigger" placeholder="Trigger (e.g., 'gh')" class="form-input" />
                 <input type="text" id="bang-name" placeholder="Name (e.g., 'GitHub')" class="form-input" />
@@ -124,6 +124,21 @@ function renderSettingsUI() {
             </div>
           </div>
         </div>
+        <div id="json-modal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+          <div class="modal-content" role="document">
+            <h2 data-tooltip="Array of objects with the following keys (Please refer to the custom bang section for examples):&#10;t - Trigger&#10;s - Name&#10;u - URL&#10;d - Domain of the URL (e.g., 'github.com')">Edit Custom Bangs (JSON)<span class="tooltip-indicator" aria-hidden="true">ⓘ</span></h2>
+            <textarea id="json-textarea" class="json-textarea" aria-label="Custom bangs JSON"></textarea>
+            <div class="modal-actions">
+              <div class="left-actions">
+                <button id="format-json-btn" class="format-button">Format</button>
+              </div>
+              <div class="right-actions">
+                <button id="save-json-btn" class="primary-button">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <p class="github-link">
           <a href="https://github.com/dev-bhaskar8/unduckling" target="_blank">View on GitHub</a>
         </p>
@@ -209,6 +224,102 @@ function setupEventListeners() {
         renderSettingsUI();
       }
     });
+  });
+
+  // JSON editor modal controls (use app-scoped queries and guarded listeners)
+  const bulkEditLink = app.querySelector<HTMLAnchorElement>("#bulk-edit-link");
+  const jsonModal = app.querySelector<HTMLDivElement>("#json-modal");
+  const jsonTextarea = jsonModal?.querySelector<HTMLTextAreaElement>("#json-textarea");
+  const formatBtn = jsonModal?.querySelector<HTMLButtonElement>("#format-json-btn");
+  const saveBtn = jsonModal?.querySelector<HTMLButtonElement>("#save-json-btn");
+
+  function openJsonModal() {
+    if (!jsonModal || !jsonTextarea) return;
+    const current = CustomBangsManager.getCustomBangs();
+    jsonTextarea.value = JSON.stringify(current, null, 2);
+    jsonModal.classList.remove('hidden');
+    jsonModal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => jsonTextarea.focus(), 0);
+    // remove any existing floating tooltip
+    const existing = document.querySelector('.tooltip-float') as HTMLElement | null;
+    if (existing) existing.style.display = 'none';
+  }
+
+  function closeJsonModal() {
+    if (!jsonModal) return;
+    jsonModal.classList.add('hidden');
+    jsonModal.setAttribute('aria-hidden', 'true');
+    const existing = document.querySelector('.tooltip-float') as HTMLElement | null;
+    if (existing) existing.style.display = 'none';
+  }
+
+  bulkEditLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openJsonModal();
+  });
+
+  // Tooltip handling for modal title (floating element)
+  const modalTitle = jsonModal?.querySelector('h2[data-tooltip]') as HTMLElement | null;
+  let tooltipEl: HTMLElement | null = null;
+  if (modalTitle) {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'tooltip-float';
+    tooltipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(tooltipEl);
+
+    modalTitle.addEventListener('mouseenter', () => {
+      const txt = modalTitle.getAttribute('data-tooltip') || '';
+      tooltipEl!.textContent = txt.replace(/&#10;/g, '\n');
+      tooltipEl!.style.display = 'block';
+      const rect = modalTitle.getBoundingClientRect();
+      // position above the modal, centered and outside modal bounds
+      const tooltipWidth = Math.min(tooltipEl!.offsetWidth || 300, 560);
+      const left = Math.max(12, rect.left + rect.width / 2 - tooltipWidth / 2);
+      tooltipEl!.style.left = left + 'px';
+      // prefer above element; if not enough space, place below
+      const aboveTop = rect.top - 12 - tooltipEl!.offsetHeight;
+      if (aboveTop > 8) {
+        tooltipEl!.style.top = aboveTop + 'px';
+      } else {
+        tooltipEl!.style.top = (rect.bottom + 12) + 'px';
+      }
+    });
+    modalTitle.addEventListener('mouseleave', () => {
+      if (tooltipEl) tooltipEl.style.display = 'none';
+    });
+  }
+
+  formatBtn?.addEventListener('click', () => {
+    if (!jsonTextarea) return;
+    try {
+      const parsed = JSON.parse(jsonTextarea.value);
+      jsonTextarea.value = JSON.stringify(parsed, null, 2);
+    } catch (e) {
+      alert('Invalid JSON — cannot format');
+    }
+  });
+
+  saveBtn?.addEventListener('click', () => {
+    if (!jsonTextarea) return;
+    try {
+      const parsed = JSON.parse(jsonTextarea.value);
+      if (!Array.isArray(parsed)) throw new Error('Top-level JSON must be an array');
+      for (const item of parsed) {
+        if (typeof item.t !== 'string' || typeof item.s !== 'string' || typeof item.u !== 'string' || typeof item.d !== 'string') {
+          throw new Error('Each item must be an object with string properties t, s, u, d');
+        }
+      }
+      CustomBangsManager.saveCustomBangs(parsed as any);
+      closeJsonModal();
+      renderSettingsUI();
+    } catch (e: any) {
+      alert('Invalid JSON: ' + (e && e.message ? e.message : e));
+    }
+  });
+
+  // Close modal on overlay click
+  jsonModal?.addEventListener('click', (e) => {
+    if (e.target === jsonModal) closeJsonModal();
   });
 }
 
